@@ -1,9 +1,11 @@
 #r "System.Xml.Linq.dll"
 #load "packages/FsLab/FsLab.fsx"
+#load "Chapter3.fsx"
 open Deedle
 open FSharp.Data
 open XPlot.GoogleCharts
 open XPlot.GoogleCharts.Deedle
+open Chapter3
 
 type WorldData = XmlProvider<"http://api.worldbank.org/countries/indicators/NY.GDP.PCAP.CD?date=2010:2010">
 
@@ -89,7 +91,23 @@ let options = Options(pointSize=3, colors=[|"#3B8FCC"|],
 Chart.Scatter(Seq.zip gdp life)
   |> Chart.WithOptions(options)
 
+let data = norm.GetRows<float>().Values |> List.ofSeq
 
+let distance (s1:Series<string,float>) (s2:Series<string,float>) =
+    (s1 - s2) * (s1 - s2) |> Stats.sum
+
+let aggregate items =
+  items
+  |> Frame.ofRowsOrdinal
+  |> Stats.mean
+
+let clrs = ColorAxis(colors=[|"red";"blue";"orange"|])
+let countryClusters =
+ kmeans distance aggregate 3 data
+
+Seq.zip norm.RowKeys countryClusters
+|> Chart.Geo
+|> Chart.WithOptions(Options(colorAxis=clrs))
 
 
 
