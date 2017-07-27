@@ -7,11 +7,13 @@ open System.IO
 
 type DocType = Ham | Spam
 
+// Parse string label for each line to either ham or spam
 let parseDocType = function 
       | "ham" -> Ham
       | "spam" -> Spam
       | _ -> failwith "Unknown label"
 
+// Split line into its label and the text of the message
 let parseLine (line:string) =
     let split = line.Split('\t')
     let label = split.[0] |> parseDocType
@@ -30,6 +32,7 @@ open System.Text.RegularExpressions
 
 let matchWords = Regex(@"\w+")
 
+// Get a set of tokens (words in this case) from a string
 let wordTokenizer (text:string) =
     text.ToLowerInvariant()
     |> matchWords.Matches
@@ -38,7 +41,7 @@ let wordTokenizer (text:string) =
     |> Set.ofSeq
 
 let training = dataset
-                |> List.skip 100 
+                |> List.skip 1000
                 |> Array.ofList
 
 
@@ -46,11 +49,13 @@ let validation = dataset
                   |> List.take 1000
                   |> Array.ofList            
 
+// Get the entire set of tokens across a sequence of messages
 let vocabulary (tokenizer:Tokenizer) (corpus:string seq) = 
     corpus
     |> Seq.map tokenizer
     |> Set.unionMany
 
+// All tokens in the training set.
 let allTokens =
     training
     |> Seq.map snd
@@ -144,3 +149,47 @@ let smartTokenizer = caseTokenizer >> Set.map mapSpecialTokens
 let smartTokens = specificTokens |> Set.add "__PHONE__" |> Set.add "__TEXT__"
 
 evaluate smartTokenizer smartTokens
+
+let lengthAnalysis len = 
+    let long (msg:string) = msg.Length > len
+
+    let ham, spam = 
+        dataset
+        |> List.partition (fun (docType,_) -> docType = Ham)
+
+    let spamAndLongCount = 
+        spam 
+        |> List.filter (fun (_,sms) -> long sms)
+        |> List.length
+
+    let longCount = 
+        dataset 
+        |> List.filter (fun (_,sms) -> long sms)
+        |> List.length
+
+    let pSpam = (float spam.Length) / (float dataset.Length)
+    let pLongIfSpam = float spamAndLongCount / float spam.Length
+    let pLong = float longCount / float dataset.Length
+
+    let pSpamIfLong = pLongIfSpam * pSpam / pLong
+    pSpamIfLong
+
+for l in 10 ..10 .. 130 do 
+    printfn "P(Spam if Length > % i) = %.4f" l (lengthAnalysis l)
+
+
+let bestClassifier = train training smartTokenizer smartTokens
+let byDocType docType docTypeName =
+    validation
+    |> Seq.filter(fun(dt,_) -> dt = docType)
+    |> Seq.averageBy (fun (docType,sms) -> 
+        if docType = bestClassifier sms
+        then 1.0
+        else 0.)
+    |> printfn "Properly classified %s: %.5f" docTypeName
+
+byDocType Ham "Ham"
+byDocType Spam "Spam"
+
+
+    

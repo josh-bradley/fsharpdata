@@ -22,6 +22,7 @@ let classify (groups:(_*DocsGroup)[]) (tokenizer:Tokenizer) (txt:string) =
 
 let proportion count total = float count / float total
 let laplace count total = float (count + 1) / float (total + 1)
+// How many messages (Represented by a Set) had the specific token
 let countIn (group:TokenizedDoc seq) (token:Token) =
     group
     |> Seq.filter (Set.contains token)
