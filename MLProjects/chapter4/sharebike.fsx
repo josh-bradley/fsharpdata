@@ -38,7 +38,7 @@ let model (theta0, theata1) (obs: Obs) =
     theta0 + theata1 * (float obs.Instant)
 
 let model0 = model (4505., 0.)
-let model1 = model (6000., -4.5)
+let model1 = model (4505., 2.)
 
 Chart.Combine [
   Chart.Line count
@@ -57,10 +57,75 @@ let overallCost = cost data
 overallCost model0 |> printfn "Cost of model0: %.0f"
 overallCost model1 |> printfn "Cost of model1: %.0f"
 
+let gradientDecent theata0 theata1 feature1 y theatak featurek alpha  = 
+    theatak - 2. * alpha * featurek * (theata0 + theata1 * feature1 - y)
 
+let update alpha (theata0, theata1) (obs:Obs) =
+    let y = float obs.Cnt
+    let x = float obs.Instant
+    let gd = gradientDecent theata0 theata1 x y 
+    let theata0' = gd theata0 1. alpha
+    let theata1' = gd theata1 x alpha
+    theata0', theata1'
 
+let obs100 = data |> Seq.nth 100
+let testUpdate = update 0.00001 (0.,0.) obs100
+cost [obs100] (model (0.,0.))
+cost [obs100] (model testUpdate)
 
+let stochastic alpha (theata0, theata1) =
+    data 
+    |> Seq.fold (fun (t0, t1) obs -> 
+        printfn "%.4f,%.4f" t0 t1
+        update alpha (t0,t1) obs) (theata0, theata1)
 
+let tunealpha = 
+    [ for r in 1..20 -> 
+       (pown 0.1 r), stochastic (pown 0.1 r) (0.,0.) |> model |> overallCost]
 
-  
+tunealpha 
+  |> List.iter(fun (a,cost) -> 
+                printfn "%.20f\t%.4f" a cost)
+
+let alpha = pown 0.1 8
+let model2 = model (stochastic alpha (0.0,0.0))
+Chart.Combine [
+  Chart.Line count
+  Chart.Line [for obs in data -> model2 obs]
+]
+
+let hiRate = alpha * 10.
+let errorEval = 
+    data
+    |> Seq.scan (fun (t0, t1) obs -> update hiRate (t0,t1) obs) (0., 0.)
+    |> Seq.map (model >> overallCost)
+    |> Chart.Line
+
+let batchUpdate alpha (theata0, theata1) (data:Obs seq) =
+    let updates =
+        data
+        |> Seq.map (update alpha (theata0, theata1))
+    let theata0' = updates |> Seq.averageBy fst      
+    let theata1' = updates |> Seq.averageBy snd
+    theata0', theata1'
+
+let batch alpha iters = 
+    let rec search (t0, t1) i =
+        match i with
+        | 0 -> (t0, t1)
+        | _ -> search(batchUpdate alpha (t0,t1) data) (i-1)
+    search (0.,0.) iters      
+
+let batchedError alpha =
+    Seq.unfold (fun(t0, t1) -> 
+                let (t0', t1') = batchUpdate alpha (t0, t1) data
+                let error = model (t0,t1) |> overallCost
+                Some(error, (t0',t1'))) (0.,0.) 
+    |> Seq.take 100
+    |> Seq.toList
+    |> Chart.Line 
+
+batchedError 0.0000001           
+
+batch 0.000001 1000
 

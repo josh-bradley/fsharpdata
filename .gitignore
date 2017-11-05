@@ -3,3 +3,5 @@ packages
 .DS_Store
 .paket/paket.exe
 data/
+obj/
+FSharp.Data.2.3.3/

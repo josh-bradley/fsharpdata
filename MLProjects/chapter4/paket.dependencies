@@ -2,3 +2,6 @@ framework: >= net40
 source https://nuget.org/api/v2
 
 nuget FsLab
+nuget MathNet.Numerics
+nuget MathNet.Numerics.FSharp
+nuget MathNet.Numerics.MKL.Win
